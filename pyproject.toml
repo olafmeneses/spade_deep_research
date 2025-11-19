@@ -1,0 +1,12 @@
+[project]
+name = "spade-deep-research"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "spade-llm[chroma]",
+]
+
+[tool.uv.sources]
+spade-llm = { git = "https://github.com/olafmeneses/spade_llm", rev = "feat/rag" }
