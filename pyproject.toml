@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "spade-llm[chroma]",
+    "tavily>=1.1.0",
 ]
 
 [tool.uv.sources]
-spade-llm = { git = "https://github.com/olafmeneses/spade_llm", rev = "feat/rag" }
+spade-llm = { git = "https://github.com/javipalanca/spade_llm", rev = "dev" }

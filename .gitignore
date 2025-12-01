@@ -8,3 +8,19 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Logs
+logs/
+
+# Data
+data/
+
+# Secrets
+.env
+
+# SPADE Server
+server.db
+
+# Other
+implementation_notes/
+simple_implementations/
