@@ -6,12 +6,10 @@ from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# State constants
-DRAFT_PLAN_STATE = "DRAFT_PLAN_STATE"
-WAIT_USER_VALIDATION_STATE = "WAIT_USER_VALIDATION_STATE"
-RESEARCH_EXECUTION_STATE = "RESEARCH_EXECUTION_STATE"
 
 class DraftPlanState(State):
+    NAME = "DRAFT_PLAN_STATE"
+
     async def run(self):
         logger.info("[DraftPlanState] Generating research plan...")
         user_query = self.agent.user_query
@@ -38,15 +36,18 @@ class DraftPlanState(State):
                 
                 plan = json.loads(clean_body.strip())
                 self.agent.current_plan = plan
-                self.set_next_state(WAIT_USER_VALIDATION_STATE)
+                self.set_next_state(WaitForUserValidationState.NAME)
             except json.JSONDecodeError:
                 logger.warning("[DraftPlanState] Failed to parse plan JSON. Retrying...")
-                self.set_next_state(DRAFT_PLAN_STATE)
+                self.set_next_state(DraftPlanState.NAME)
         else:
             logger.warning("[DraftPlanState] Timeout waiting for planner.")
-            self.set_next_state(DRAFT_PLAN_STATE) # Retry
+            self.set_next_state(DraftPlanState.NAME)  # Retry
+
 
 class WaitForUserValidationState(State):
+    NAME = "WAIT_USER_VALIDATION_STATE"
+
     async def run(self):
         logger.info("[WaitForUserValidationState] Waiting for user validation")
         print("\n[WaitForUserValidationState] Proposed Plan:")
@@ -55,11 +56,13 @@ class WaitForUserValidationState(State):
         choice = await self.agent.input_func("\nApprove plan? (y/n/modify): ")
         
         if choice.lower().startswith('y'):
-            self.set_next_state(RESEARCH_EXECUTION_STATE)
+            # Import here to avoid circular import
+            from src.states.research import ResearchExecutionState
+            self.set_next_state(ResearchExecutionState.NAME)
         else:
             logger.info("[WaitForUserValidationState] Requesting modification...")
             feedback = await self.agent.input_func("Enter feedback for modification: ")
             # Update the query with feedback to refine the plan
             self.agent.user_query = f"Original request: {self.agent.initial_query}\nPrevious Plan: {json.dumps(self.agent.current_plan)}\nFeedback: {feedback}\nPlease update the plan."
-            self.set_next_state(DRAFT_PLAN_STATE)
+            self.set_next_state(DraftPlanState.NAME)
 

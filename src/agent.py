@@ -5,23 +5,13 @@ from spade.agent import Agent
 from spade.behaviour import FSMBehaviour, CyclicBehaviour
 from spade.message import Message
 from spade.template import Template
-from src.states.planning import (
-    DraftPlanState, 
+from src.states import (
+    DraftPlanState,
     WaitForUserValidationState,
-    DRAFT_PLAN_STATE,
-    WAIT_USER_VALIDATION_STATE
-)
-from src.states.research import (
     ResearchExecutionState,
-    RESEARCH_EXECUTION_STATE,
-    DRAFT_REPORT_STATE
-)
-from src.states.writing import (
     DraftReportState,
     ReviewReportState,
     FinalOutputState,
-    REVIEW_REPORT_STATE,
-    FINAL_OUTPUT_STATE
 )
 
 logger = logging.getLogger(__name__)
@@ -117,32 +107,32 @@ class DeepResearchAgent(Agent):
         """Configure FSM states and transitions"""
         
         # Register States
-        fsm.add_state(name=DRAFT_PLAN_STATE, state=DraftPlanState(), initial=True)
-        fsm.add_state(name=WAIT_USER_VALIDATION_STATE, state=WaitForUserValidationState())
-        fsm.add_state(name=RESEARCH_EXECUTION_STATE, state=ResearchExecutionState())
-        fsm.add_state(name=DRAFT_REPORT_STATE, state=DraftReportState())
-        fsm.add_state(name=REVIEW_REPORT_STATE, state=ReviewReportState())
-        fsm.add_state(name=FINAL_OUTPUT_STATE, state=FinalOutputState())
+        fsm.add_state(name=DraftPlanState.NAME, state=DraftPlanState(), initial=True)
+        fsm.add_state(name=WaitForUserValidationState.NAME, state=WaitForUserValidationState())
+        fsm.add_state(name=ResearchExecutionState.NAME, state=ResearchExecutionState())
+        fsm.add_state(name=DraftReportState.NAME, state=DraftReportState())
+        fsm.add_state(name=ReviewReportState.NAME, state=ReviewReportState())
+        fsm.add_state(name=FinalOutputState.NAME, state=FinalOutputState())
         
         # Register Transitions
         # Planning Phase
-        fsm.add_transition(source=DRAFT_PLAN_STATE, dest=WAIT_USER_VALIDATION_STATE)
-        fsm.add_transition(source=WAIT_USER_VALIDATION_STATE, dest=RESEARCH_EXECUTION_STATE)
-        fsm.add_transition(source=WAIT_USER_VALIDATION_STATE, dest=DRAFT_PLAN_STATE) # Loop
+        fsm.add_transition(source=DraftPlanState.NAME, dest=WaitForUserValidationState.NAME)
+        fsm.add_transition(source=WaitForUserValidationState.NAME, dest=ResearchExecutionState.NAME)
+        fsm.add_transition(source=WaitForUserValidationState.NAME, dest=DraftPlanState.NAME)  # Loop
         
         # Research Phase
-        fsm.add_transition(source=RESEARCH_EXECUTION_STATE, dest=DRAFT_REPORT_STATE)
-        fsm.add_transition(source=RESEARCH_EXECUTION_STATE, dest=RESEARCH_EXECUTION_STATE) # Retry loop
+        fsm.add_transition(source=ResearchExecutionState.NAME, dest=DraftReportState.NAME)
+        fsm.add_transition(source=ResearchExecutionState.NAME, dest=ResearchExecutionState.NAME)  # Retry loop
         
         # Writing Phase
-        fsm.add_transition(source=DRAFT_REPORT_STATE, dest=REVIEW_REPORT_STATE)
-        fsm.add_transition(source=DRAFT_REPORT_STATE, dest=DRAFT_REPORT_STATE) # Retry loop
+        fsm.add_transition(source=DraftReportState.NAME, dest=ReviewReportState.NAME)
+        fsm.add_transition(source=DraftReportState.NAME, dest=DraftReportState.NAME)  # Retry loop
         
-        fsm.add_transition(source=REVIEW_REPORT_STATE, dest=FINAL_OUTPUT_STATE)
-        fsm.add_transition(source=REVIEW_REPORT_STATE, dest=FINAL_OUTPUT_STATE) # Fail open path
+        fsm.add_transition(source=ReviewReportState.NAME, dest=FinalOutputState.NAME)
+        fsm.add_transition(source=ReviewReportState.NAME, dest=FinalOutputState.NAME)  # Fail open path
         
         # Feedback Loop (Critic -> Research)
-        fsm.add_transition(source=REVIEW_REPORT_STATE, dest=RESEARCH_EXECUTION_STATE)
+        fsm.add_transition(source=ReviewReportState.NAME, dest=ResearchExecutionState.NAME)
 
     async def setup(self):
         logger.info("DeepResearchAgent starting...")

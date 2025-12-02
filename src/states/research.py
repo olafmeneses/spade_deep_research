@@ -5,11 +5,10 @@ from spade.message import Message
 
 logger = logging.getLogger(__name__)
 
-# State constants
-RESEARCH_EXECUTION_STATE = "RESEARCH_EXECUTION_STATE"
-DRAFT_REPORT_STATE = "DRAFT_REPORT_STATE"
 
 class ResearchExecutionState(State):
+    NAME = "RESEARCH_EXECUTION_STATE"
+
     async def run(self):
         logger.info("[ResearchExecutionState] Delegating to Coordinator...")
         coordinator_jid = self.agent.coordinator_jid
@@ -35,7 +34,7 @@ class ResearchExecutionState(State):
 
         final_response = None
         while True:
-            response = await self.receive(timeout=600) # 10 minutes
+            response = await self.receive(timeout=600)  # 10 minutes
             if response:
                 logger.debug(f"[ResearchExecutionState] Received: {response.body[:100]}...")
                 normalized_body = response.body.replace(" ", "").upper()
@@ -50,8 +49,10 @@ class ResearchExecutionState(State):
         
         if final_response:
             self.agent.research_context = final_response
-            self.set_next_state(DRAFT_REPORT_STATE)
+            # Import here to avoid circular import
+            from src.states.writing import DraftReportState
+            self.set_next_state(DraftReportState.NAME)
         else:
             logger.error("[ResearchExecutionState] Failed to get results.")
-            self.set_next_state(RESEARCH_EXECUTION_STATE) # Retry?
+            self.set_next_state(ResearchExecutionState.NAME)  # Retry?
 
