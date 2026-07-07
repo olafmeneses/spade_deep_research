@@ -1,173 +1,273 @@
+"""Tool configurations for research agents."""
+
 import logging
 import asyncio
+import time
+from typing import Dict, Any, Literal, Optional
+from threading import Lock
+
 from tavily import TavilyClient
-from typing import List, Dict, Any, Literal
-from src.utils.summarizer import summarize_content as summarize_with_llm
+from spade_llm.tools import LLMTool
+from spade_llm.providers import LLMProvider
+from src.telemetry import telemetry_registry
+from src.utils.summarizer import summarize_content
+from src.references import reference_registry
+from src.session import ReferenceSource
+from src.tools.session_aware import SessionAwareToolMixin
+from src.budgets import SessionBudgetRegistry
+from src.config.settings import settings
+from src.tavily_cache import TavilySearchCache
 
+logger = logging.getLogger(__name__)
 tavily_client = TavilyClient()
+tavily_cache = TavilySearchCache(
+    path=settings.TAVILY_CACHE_PATH,
+    ttl_days=settings.TAVILY_CACHE_TTL_DAYS,
+    enabled=settings.ENABLE_TAVILY_CACHE,
+)
 
-def create_tavily_search_tool(summary_provider = None):
-    """
-    Create a Tavily search tool for the given summary_provider.
-    
-    Args:
-        summary_provider: Optional LLM provider for content summarization
-    
-    Returns:
-        LLMTool configured for Tavily search
-    """
-    from spade_llm.tools import LLMTool
-    
-    async def tavily_search_impl(
-        query: str,
-        max_results: int = 3,
-        topic: Literal["general", "news", "finance"] = "general"
-    ) -> str:
-        logging.info(f"Tavily search called with query: {query}, max_results: {max_results}, topic: {topic}")
-        
-        try:
-            results = await tavily_search(
-                query=query,
-                max_results=max_results,
-                topic=topic,
-                summary_provider=summary_provider,
+MIN_SUMMARY_CONTENT_LENGTH = 500
+MAX_SUMMARY_INPUT_LENGTH = 15000
+DEFAULT_CONCURRENCY_LIMIT = 3
+_cache_key_locks: dict[str, asyncio.Lock] = {}
+_cache_key_locks_guard = Lock()
+
+
+def _get_cache_lock(query: str, topic: str) -> asyncio.Lock:
+    key = f"{topic}:{' '.join(query.split())}"
+    with _cache_key_locks_guard:
+        lock = _cache_key_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            _cache_key_locks[key] = lock
+        return lock
+
+
+def _register_tavily_references(session_id: Optional[str], items: list[Dict[str, Any]]) -> None:
+    if not session_id:
+        return
+
+    for result in items:
+        url = result.get("url", "")
+        title = result.get("title")
+        if url:
+            reference_registry.register(
+                session_id=session_id,
+                identifier=url,
+                source_type=ReferenceSource.TAVILY,
+                title=title,
             )
-            
-            if not results:
-                logging.warning(f"No results found for query: {query}")
-                return "No results found for your search query."
-            
-            formatted_results = []
-            for i, result in enumerate(results, 1):
-                formatted_results.append(
-                    f"Document {i}. **{result.get('title', 'N/A')}**\n"
-                    f"   URL: {result.get('url', 'N/A')}\n"
-                    f"   Summary: {result.get('summary', 'N/A')}"
-                )
-            
-            result_str = "\n\n".join(formatted_results)
-            logging.info(f"Returning {len(results)} results")
-            return result_str
-        except Exception as e:
-            logging.error(f"Error in tavily_search_impl: {e}", exc_info=True)
-            return f"Error performing search: {str(e)}"
+
+
+def _format_tavily_output(items: list[Dict[str, Any]]) -> str:
+    if not items:
+        return "No results found."
+
+    output = []
+    for i, result in enumerate(items, 1):
+        summary = result.get("summary", result.get("content", "N/A"))
+        output.append(
+            f"{i}. **{result.get('title', 'N/A')}**\n"
+            f"   URL: {result.get('url', 'N/A')}\n"
+            f"   {summary}"
+        )
+
+    return "\n\n".join(output)
+
+
+def _deduplicate_tavily_items(items: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    unique: dict[str, Dict[str, Any]] = {}
+    for index, item in enumerate(items):
+        key = item.get("url") or f"missing-url-{index}"
+        unique[key] = item
+    return list(unique.values())
+
+
+class SessionAwareTavilyTool(SessionAwareToolMixin, LLMTool):
+    """Tavily search tool with session-aware reference collection."""
     
-    return LLMTool(
-        name="tavily_search",
-        description="Search the web for current information using Tavily. Returns formatted results with titles, URLs, and summaries.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "The search query"
+    def __init__(self, summary_provider: Optional[LLMProvider] = None,
+                 concurrency_limit: int = DEFAULT_CONCURRENCY_LIMIT,
+                 owner_id: Optional[str] = None,
+                 max_calls_per_agent: Optional[int] = None,
+                 max_calls_per_session: Optional[int] = None):
+        self.summary_provider = summary_provider
+        self.sem = asyncio.Semaphore(concurrency_limit)
+        self.owner_id = owner_id
+        self.max_calls_per_agent = max_calls_per_agent
+        self.max_calls_per_session = max_calls_per_session
+        
+        super().__init__(
+            name="tavily_search",
+            description="Search the web for current information using Tavily.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                    "max_results": {"type": "integer", "description": "Max results (default: 5)", "default": 5},
+                    "topic": {"type": "string", "enum": ["general", "news", "finance"], "default": "general"}
                 },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return (default: 3)",
-                    "default": 3
-                },
-                "topic": {
-                    "type": "string",
-                    "enum": ["general", "news", "finance"],
-                    "description": "Search topic category (default: general)",
-                    "default": "general"
-                }
+                "required": ["query"]
             },
-            "required": ["query"]
-        },
-        func=tavily_search_impl
+            func=self._search
+        )
+    
+    async def _search(self, query: str, max_results: int = 5,
+                      topic: Literal["general", "news", "finance"] = "general") -> str:
+        """Execute search and register references."""
+        logger.info("Tavily search: %s", query)
+        started_at = time.perf_counter()
+
+        allowed, reason = SessionBudgetRegistry.try_consume_tavily_call(
+            session_id=self._session_id,
+            agent_id=self.owner_id,
+            max_calls_per_session=self.max_calls_per_session,
+            max_calls_per_agent=self.max_calls_per_agent,
+        )
+        if not allowed:
+            logger.warning("Skipping Tavily search for %s: %s", self.owner_id or "unknown-agent", reason)
+            telemetry_registry.record_tool_call(
+                session_id=self._session_id,
+                source_family=ReferenceSource.TAVILY.value,
+                tool_name=self.name,
+                success=False,
+                duration_seconds=time.perf_counter() - started_at,
+                error=reason,
+            )
+            return (
+                f"Search budget reached. {reason} "
+                "Use the evidence already collected and provide the best answer you can without more web searches."
+            )
+
+        try:
+            cache_lock = _get_cache_lock(query, topic)
+            cached_entry = tavily_cache.get(query, topic)
+            if cached_entry and cached_entry.requested_max_results >= max_results:
+                items = cached_entry.items[:max_results]
+                _register_tavily_references(self._session_id, items)
+                telemetry_registry.record_tool_call(
+                    session_id=self._session_id,
+                    source_family=ReferenceSource.TAVILY.value,
+                    tool_name=self.name,
+                    success=True,
+                    duration_seconds=time.perf_counter() - started_at,
+                )
+                return _format_tavily_output(items)
+
+            async with cache_lock:
+                cached_entry = tavily_cache.get(query, topic)
+                if cached_entry and cached_entry.requested_max_results >= max_results:
+                    items = cached_entry.items[:max_results]
+                    _register_tavily_references(self._session_id, items)
+                    telemetry_registry.record_tool_call(
+                        session_id=self._session_id,
+                        source_family=ReferenceSource.TAVILY.value,
+                        tool_name=self.name,
+                        success=True,
+                        duration_seconds=time.perf_counter() - started_at,
+                    )
+                    return _format_tavily_output(items)
+
+                results = await asyncio.to_thread(
+                    tavily_client.search,
+                    query=query,
+                    max_results=max_results,
+                    topic=topic,
+                    include_raw_content=bool(self.summary_provider),
+                    include_images=False
+                )
+
+                items = results.get("results", [])
+                if not items:
+                    telemetry_registry.record_tool_call(
+                        session_id=self._session_id,
+                        source_family=ReferenceSource.TAVILY.value,
+                        tool_name=self.name,
+                        success=True,
+                        duration_seconds=time.perf_counter() - started_at,
+                    )
+                    return "No results found."
+
+                unique = _deduplicate_tavily_items(items)
+
+                if self.summary_provider:
+                    await _summarize_results(
+                        {result.get("url", f"result-{idx}"): result for idx, result in enumerate(unique)},
+                        self.summary_provider,
+                        query,
+                        self.sem,
+                    )
+
+                tavily_cache.set(
+                    query=query,
+                    topic=topic,
+                    requested_max_results=max_results,
+                    items=unique,
+                )
+                items = unique[:max_results]
+
+            _register_tavily_references(self._session_id, items)
+            if not items:
+                return "No results found."
+            telemetry_registry.record_tool_call(
+                session_id=self._session_id,
+                source_family=ReferenceSource.TAVILY.value,
+                tool_name=self.name,
+                success=True,
+                duration_seconds=time.perf_counter() - started_at,
+            )
+            return _format_tavily_output(items)
+            
+        except Exception as e:
+            logger.exception("Tavily search failed for query: %s", query)
+            telemetry_registry.record_tool_call(
+                session_id=self._session_id,
+                source_family=ReferenceSource.TAVILY.value,
+                tool_name=self.name,
+                success=False,
+                duration_seconds=time.perf_counter() - started_at,
+                error=str(e),
+            )
+            return f"Search error: {e}"
+
+
+def create_tavily_search_tool(
+    summary_provider: Optional[LLMProvider] = None,
+    concurrency_limit: int = DEFAULT_CONCURRENCY_LIMIT,
+    owner_id: Optional[str] = None,
+    max_calls_per_agent: Optional[int] = None,
+    max_calls_per_session: Optional[int] = None,
+) -> LLMTool:
+    """Create a session-aware Tavily search tool with optional summarization."""
+    return SessionAwareTavilyTool(
+        summary_provider,
+        concurrency_limit,
+        owner_id=owner_id,
+        max_calls_per_agent=max_calls_per_agent,
+        max_calls_per_session=max_calls_per_session,
     )
 
-async def summarize_content(
-    results: Dict[str, Any],
-    summary_provider = None
-) -> Dict[str, Any]:
-    """
-    Summarize the content of each search result using an LLM provider directly.
-    Modifies the results dictionary in place to add a 'summary' field.
-    
-    Args:
-        results: Dictionary of search results keyed by URL
-        summary_provider: LLM provider for summarization (optional)
-    
-    Returns:
-        Modified list of results
-    """
-    for url, result in results.items():
-        raw_content = result.get("raw_content", "")
-        summary = None
 
-        if raw_content and summary_provider:
-            if len(raw_content) > 500:  # Summarize if content is long
+async def _summarize_results(results: Dict[str, Any], provider: LLMProvider, query: str, sem: asyncio.Semaphore) -> None:
+    """Summarize long content in results using LLM."""
+    
+    async def process_item(url: str, result: Dict[str, Any]):
+        async with sem:
+            raw_content = result.get("raw_content", "")
+            
+            if raw_content and len(raw_content) > MIN_SUMMARY_CONTENT_LENGTH:
                 try:
-                    summary = await summarize_with_llm(
-                        summary_provider=summary_provider,
-                        content=raw_content,
-                        context="Extract key findings and main points from this web content"
-                    )
+                    prompt = f"Extract key findings from this text related to the research query: '{query}'"
+                    summary = await summarize_content(provider, raw_content[:MAX_SUMMARY_INPUT_LENGTH], prompt)
+                    if summary:
+                        result["summary"] = summary
                 except Exception as e:
-                    logging.error(f"Error summarizing content from {url}: {e}")
-            else:
-                summary = raw_content
+                    logger.exception("Failed to summarize %s", url)
+            
+            if "summary" not in result:
+                result["summary"] = result.get("content", "No summary available.")
 
-        if summary:
-            result["summary"] = summary
-            logging.info(f"Summarized content from {url}")
-        else:
-            result["summary"] = result.get("content", "") # Fallback to original content
-            logging.info(f"Using original content from {url} as summary could not be obtained")
-    
-    return results
+    tasks = [process_item(url, result) for url, result in results.items()]
+    await asyncio.gather(*tasks)
 
-async def tavily_search(
-    query: str,
-    max_results: int = 3,
-    topic: Literal["general", "news", "finance"] = "general",
-    summary_provider = None
-) -> List[Dict[str, Any]]:
-    """
-    Perform a search using the Tavily API.
-    
-    Args:
-        query: Search query
-        max_results: Maximum number of results
-        topic: Search topic category
-        summary_provider: Optional LLM provider for content summarization
-    
-    Returns:
-        List of search results. If summary_provider is provided,
-        results will have 'summary' field. Otherwise, 'content' field is used.
-    """
-    try:
-        logging.info(f"Starting Tavily search for: {query}")
-        
-        # Run the synchronous tavily_client.search() in a thread pool
-        results = await asyncio.to_thread(
-            tavily_client.search,
-            query=query,
-            max_results=max_results,
-            topic=topic,
-            include_raw_content=True,
-            include_images=False
-        )
-        
-        logging.info(f"Tavily returned {len(results.get('results', []))} results")
-
-        unique_results = {}
-        for result in results.get("results", []):
-            url = result.get("url")
-            if url not in unique_results:
-                unique_results[url] = result
-        
-        logging.info(f"Processing {len(unique_results)} unique results")
-        
-        # Summarize content if summary_provider available
-        await summarize_content(unique_results, summary_provider)
-        
-        final_results = list(unique_results.values())
-        logging.info(f"Returning {len(final_results)} results")
-        return final_results
-    except Exception as e:
-        logging.error(f"Error during Tavily search: {e}", exc_info=True)
-        return []
+    return

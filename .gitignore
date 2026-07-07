@@ -5,18 +5,28 @@ build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
+
 
 # Virtual environments
 .venv
 
 # Logs
-logs/
+*logs/
+*.log
 
 # Data
 data/
+*.sqlite
+*.sqlite3
+*.db
 
 # Secrets
 .env
+.env.*
+!.env.example
+.env.dev
+.env.local
 
 # SPADE Server
 server.db
@@ -24,3 +34,21 @@ server.db
 # Other
 implementation_notes/
 simple_implementations/
+test_multiple_cmds/
+test_research_queries/
+
+docs/integrations/vekai
+[v]ekai/
+bench/*
+!bench/__init__.py
+!bench/*.py
+!bench/results/
+!bench/results/**
+notes/
+images/
+htmlcov/
+.coverage
+.mypy_cache/
+.ruff_cache/
+*.tar
+*.zip

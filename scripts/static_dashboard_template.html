@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>%%TITLE%%</title>
+  <link rel="icon" type="image/png" href="%%FAVICON_HREF%%">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <script>
+    (() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(%%STORAGE_KEY_JSON%%) || '{}') || {};
+        if (['leaderboard', 'groups', 'inspect'].includes(saved.activePanel)) {
+          document.documentElement.dataset.initialPanel = saved.activePanel;
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <style>
+%%DASHBOARD_CSS%%
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="header-inner">
+        <button class="brand" type="button" data-home-panel="leaderboard" aria-label="Open leaderboard">
+          %%HEADER_LOGO%%
+          <span class="brand-copy">
+            <h1>SPADE Deep Research</h1>
+            <span class="brand-subtitle">Benchmark</span>
+          </span>
+        </button>
+        <div class="run-actions">
+          <div class="tabs">
+            <button class="tab active" data-panel="leaderboard">Leaderboard</button>
+            <button class="tab" data-panel="groups">Groups</button>
+            <button class="tab" data-panel="inspect">Inspect Reports</button>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main>
+      <div class="content">
+        <section id="leaderboard" class="panel active"></section>
+        <section id="groups" class="panel"></section>
+        <section id="inspect" class="panel"></section>
+      </div>
+    </main>
+  </div>
+  <script id="dashboard-data" type="application/json">%%DASHBOARD_DATA%%</script>
+  <script>
+    const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
+    const tasks = DATA.tasks;
+    const summary = DATA.summary;
+    const scoreKeys = %%SCORE_KEYS_JSON%%;
+    const storageKey = %%STORAGE_KEY_JSON%%;
+    function loadPersistedState() {
+      try { return JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; }
+      catch (_) { return {}; }
+    }
+    const persistedState = loadPersistedState();
+    let state = {
+      activePanel: ['leaderboard', 'groups', 'inspect'].includes(persistedState.activePanel) ? persistedState.activePanel : 'leaderboard',
+      query: '',
+      topics: summary.topics.map(item => item.name),
+      languages: summary.languages.map(item => item.name),
+      inspectQuery: '',
+      sort: 'id',
+      sortDir: 'asc',
+      selectedId: tasks.some(task => task.id === Number(persistedState.selectedId)) ? Number(persistedState.selectedId) : tasks[0]?.id,
+      reportFocus: Boolean(persistedState.reportFocus),
+      scrollY: Number(persistedState.scrollY || 0),
+      groupSort: {
+        topics: { key: 'name', dir: 'asc' },
+        languages: { key: 'avg_overall', dir: 'desc' }
+      }
+    };
+    function persistDashboardState() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({
+          activePanel: state.activePanel,
+          selectedId: state.selectedId,
+          reportFocus: state.reportFocus,
+          scrollY: state.scrollY
+        }));
+      } catch (_) {}
+    }
+
+    const fmt = {
+      score: v => (Number(v || 0) * 100).toFixed(2),
+      weight: v => `${(Number(v || 0) * 100).toFixed(0)}%`,
+      num: v => Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+      dec: (v, d = 2) => Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: d }),
+      money: v => `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+      percent: v => `${Number((v || 0) * 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}%`,
+      min: s => {
+        const total = Math.max(0, Math.round(Number(s || 0)));
+        const minutes = Math.floor(total / 60);
+        const seconds = total % 60;
+        return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      }
+    };
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+    const scoreDomains = Object.fromEntries(scoreKeys.map(key => {
+      const values = tasks.map(task => Number(task.scores?.[key] || 0)).filter(value => Number.isFinite(value) && value > 0);
+      return [key, {
+        min: values.length ? Math.min(...values) : 0,
+        max: values.length ? Math.max(...values) : 1
+      }];
+    }));
+    const metricDomains = {
+      ...scoreDomains,
+      runtime: (() => {
+        const values = tasks.map(task => Number(task.runtime_seconds || 0)).filter(value => Number.isFinite(value) && value > 0);
+        return { min: values.length ? Math.min(...values) : 0, max: values.length ? Math.max(...values) : 1 };
+      })(),
+      cost: (() => {
+        const values = tasks.map(task => Number(task.cost || 0)).filter(value => Number.isFinite(value) && value > 0);
+        return { min: values.length ? Math.min(...values) : 0, max: values.length ? Math.max(...values) : 1 };
+      })(),
+      references: (() => {
+        const values = tasks.map(task => Number(task.references_total || 0)).filter(value => Number.isFinite(value) && value > 0);
+        return { min: values.length ? Math.min(...values) : 0, max: values.length ? Math.max(...values) : 1 };
+      })()
+    };
+    function metricColor(value, key = 'overall_score', lowerIsBetter = false) {
+      if (scoreKeys.includes(key)) {
+        const score = Number(value || 0);
+        if (score < 0.45) return '#bd4b35';
+        if (score < 0.50) return '#b99022';
+        if (score < 0.58) return '#2d7d55';
+        return '#1f6f4a';
+      }
+      const domain = metricDomains[key] || metricDomains.overall_score || { min: 0, max: 1 };
+      const span = Math.max(0.0001, domain.max - domain.min);
+      let normalized = Math.max(0, Math.min(1, (Number(value || 0) - domain.min) / span));
+      if (lowerIsBetter) normalized = 1 - normalized;
+      if (normalized < 0.34) return '#bd4b35';
+      if (normalized < 0.67) return '#b99022';
+      return '#2d7d55';
+    }
+    function scoreColor(value, key = 'overall_score') {
+      return metricColor(value, key, false);
+    }
+    function metricText(v, key = 'overall_score', format = fmt.score, lowerIsBetter = false, extraClass = '') {
+      return `<span class="metric-value ${extraClass}" style="--metric-color: ${metricColor(v, key, lowerIsBetter)}">${format(v)}</span>`;
+    }
+    function scorePill(v, key = 'overall_score') {
+      return metricText(v, key, fmt.score);
+    }
+    function plainMetric(v, format = fmt.num) {
+      return `<span class="plain-metric">${format(v)}</span>`;
+    }
+    function titleLabel(value) {
+      return String(value || '')
+        .replaceAll('_', ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, ch => ch.toUpperCase());
+    }
+    function sourceName(value) {
+      const key = String(value || '').toLowerCase();
+      if (key === 'tavily') return 'Tavily';
+      if (key === 'arxiv') return 'arXiv';
+      return titleLabel(value);
+    }
+    function sourceColors(value) {
+      const key = String(value || '').toLowerCase();
+      if (key === 'arxiv') return { soft: '#f2b6ae', strong: '#c74332' };
+      if (key === 'tavily') return { soft: '#b9d1f3', strong: '#2f6fed' };
+      return { soft: '#d6d6ce', strong: '#747b8f' };
+    }
+    function maxOf(rows, key) { return Math.max(0.0001, ...rows.map(row => Number(row[key] || 0))); }
+    function barRow(label, value, max, accent = false, format = fmt.score, color = null) {
+      const width = Math.max(1, Math.min(100, Number(value || 0) / max * 100));
+      const labelHtml = String(label || '').startsWith('<') ? label : esc(titleLabel(label));
+      const fillStyle = color ? `width:${width}%; background:${color}` : `width:${width}%`;
+      return `<div class="bar-row"><span>${labelHtml}</span><div class="bar ${accent ? 'accent' : ''}"><i style="${fillStyle}"></i></div><b>${format(value)}</b></div>`;
+    }
+    function phaseRows(task) {
+      const phases = Object.entries(task.phase_durations || {})
+        .filter(([name]) => String(name).toLowerCase() !== 'awaiting_validation')
+        .map(([name, seconds]) => [name, Number(seconds || 0)]);
+      const total = phases.reduce((sum, [, seconds]) => sum + seconds, 0);
+      if (!phases.length || !total) return '<div class="empty">No phase timing captured.</div>';
+      return phases
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, seconds]) => {
+          const pct = seconds / total;
+          const width = Math.max(1, Math.min(100, pct * 100));
+          return `<div class="phase-row"><span>${esc(titleLabel(name))}</span><b>${fmt.percent(pct)}</b><b>${fmt.min(seconds)}</b><div class="bar"><i style="width:${width}%"></i></div></div>`;
+        })
+        .join('');
+    }
+    function sourceDiagnosticHtml(task) {
+      const retrieved = task.references_by_family || {};
+      const used = task.used_references_by_family || {};
+      const families = [...new Set([...Object.keys(retrieved), ...Object.keys(used)])];
+      if (!families.length) return '<div class="empty">No references captured.</div>';
+      const usedTotal = Number(task.used_references_total || 0);
+      const retrievedTotal = Number(task.references_total || 0);
+      const rows = families.map(name => {
+        const retrievedCount = Number(retrieved[name] || 0);
+        const usedCount = Number(used[name] || 0);
+        const colors = sourceColors(name);
+        return `<div class="source-row" style="--source-strong:${colors.strong}; --source-soft:${colors.soft}"><span>${esc(sourceName(name))}</span><b><span class="source-used-text">${fmt.num(usedCount)} used</span> / <span class="source-retrieved-text">${fmt.num(retrievedCount)} retrieved</span></b></div>`;
+      }).join('');
+      const segments = families.map(name => {
+        const retrievedCount = Number(retrieved[name] || 0);
+        const usedCount = Number(used[name] || 0);
+        const segmentWidth = retrievedTotal ? Math.max(0, retrievedCount / retrievedTotal * 100) : 0;
+        const usedWidth = retrievedCount ? Math.max(0, Math.min(100, usedCount / retrievedCount * 100)) : 0;
+        const colors = sourceColors(name);
+        return `<span class="source-segment" style="width:${segmentWidth}%; --source-soft:${colors.soft}; --source-strong:${colors.strong}"><span class="source-used" style="width:${usedWidth}%"></span></span>`;
+      }).join('');
+      const bar = `<div class="source-bar">${segments}</div>`;
+      return `<div class="diagnostic-card source-card"><header><h2>Sources</h2><span>Used ${fmt.num(usedTotal)} of ${fmt.num(retrievedTotal)} retrieved</span></header>${bar}<div class="source-legend">${rows}</div></div>`;
+    }
+    function taskById(id) { return tasks.find(task => String(task.id) === String(id)) || tasks[0]; }
+    const fallbackPalette = ['#4d6fb3', '#6f8fc7', '#2f7f8f', '#6a9c78', '#8f6ab0', '#b06a8f', '#a97b3d', '#747b8f'];
+    const semanticTopicColors = [
+      [/software development|developer|programming|code/i, '#2458d3'],
+      [/software/i, '#2f6fed'],
+      [/games?|gaming/i, '#6aa9ff'],
+      [/hardware|semiconductor|device/i, '#184f9c'],
+      [/science|technology|tech|ai|robot|data/i, '#3b8ea5'],
+      [/finance|business|market|insurance|economic/i, '#1f8a70'],
+      [/industrial|manufactur|supply|construction/i, '#62a35c'],
+      [/health|medical|biology|fitness/i, '#c94d7f'],
+      [/sports/i, '#e05b8b'],
+      [/crime|law|legal/i, '#6d758d'],
+      [/religion|history|literature|education/i, '#8d6a3f'],
+      [/art|design|fashion|beauty/i, '#8d5ac2'],
+      [/entertainment|social/i, '#b36bd6'],
+      [/travel|transport/i, '#d86a3a'],
+      [/food|dining|home|hobbies/i, '#c49a18']
+    ];
+    const topicColorMap = new Map();
+    function topicColor(topic) {
+      if (topicColorMap.has(topic)) return topicColorMap.get(topic);
+      const match = semanticTopicColors.find(([pattern]) => pattern.test(topic || ''));
+      const color = match ? match[1] : fallbackPalette[topicColorMap.size % fallbackPalette.length];
+      topicColorMap.set(topic, color);
+      return color;
+    }
+    function topicInk(topic) {
+      const hex = topicColor(topic).replace('#', '');
+      const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+      return ((r * 299 + g * 587 + b * 114) / 1000) > 150 ? '#111111' : '#ffffff';
+    }
+    function topicChip(topic) {
+      return `<span class="topic-chip" style="--topic-color: ${topicColor(topic)}; --topic-ink: ${topicInk(topic)}">${esc(topic)}</span>`;
+    }
+    function topicText(topic) {
+      return `<span class="task-topic-text" style="--topic-color: ${topicColor(topic)}">${esc(topic)}</span>`;
+    }
+    function languageName(language) {
+      const value = String(language || '').toLowerCase();
+      if (value === 'en') return 'English';
+      if (value === 'zh') return 'Chinese';
+      return language || 'Unknown';
+    }
+    function sortArrow(key) { return state.sort === key ? (state.sortDir === 'asc' ? ' ↑' : ' ↓') : ''; }
+    function groupArrow(group, key) {
+      const sort = state.groupSort[group];
+      return sort?.key === key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+    }
+    function raceSummaryBlock() {
+      const avgs = summary.score_avgs;
+      return `<div class="block">
+        <h2>Global RACE Scores</h2>
+        <div class="score-summary">
+          <div class="score-hero">
+            <span>Overall Score</span>
+            <strong>${fmt.score(avgs.overall_score)}</strong>
+          </div>
+          <div class="score-grid">
+            ${scoreKeys.filter(key => key !== 'overall_score').map(key => `<div class="score-card"><strong>${fmt.score(avgs[key])}</strong><span>${esc(titleLabel(key))}</span></div>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    }
+    function modelInfoBlock() {
+      const models = summary.models || {};
+      const evaluator = models.evaluator || {};
+      const groups = new Map();
+      for (const item of models.agent_phases || []) {
+        if (!item.model) continue;
+        const roles = groups.get(item.model) || [];
+        roles.push(item.label.toLowerCase());
+        groups.set(item.model, roles);
+      }
+      if (evaluator.model) {
+        const roles = groups.get(evaluator.model) || [];
+        roles.push('evaluator');
+        groups.set(evaluator.model, roles);
+      }
+      const details = [...groups.entries()];
+      return `<div class="model-summary">
+        <strong>Models</strong>
+        ${details.map(([model, roles], index) => `<small class="model-detail ${index > 0 ? 'model-secondary' : ''}"><b>${esc(model)}</b>: ${esc(roles.join(', '))}</small>`).join('')}
+      </div>`;
+    }
+
+    function filteredTasks() {
+      const q = state.query.toLowerCase().trim();
+      const selectedTopics = state.topics.length ? state.topics : [];
+      const selectedLanguages = state.languages.length ? state.languages : [];
+      return tasks.filter(task => {
+        const topicOk = selectedTopics.includes(task.topic);
+        const langOk = selectedLanguages.includes(task.language);
+        const qOk = !q || `${task.id} ${task.title} ${task.prompt} ${task.topic}`.toLowerCase().includes(q);
+        return topicOk && langOk && qOk;
+      }).sort((a, b) => {
+        const key = state.sort;
+        const dir = state.sortDir === 'asc' ? 1 : -1;
+        let av;
+        let bv;
+        if (key === 'id') { av = a.id; bv = b.id; }
+        else if (key === 'runtime') { av = a.runtime_seconds || 0; bv = b.runtime_seconds || 0; }
+        else if (key === 'cost') { av = a.cost || 0; bv = b.cost || 0; }
+        else if (key === 'references') { av = a.references_total || 0; bv = b.references_total || 0; }
+        else if (key === 'topic' || key === 'language' || key === 'title') { return String(a[key] || '').localeCompare(String(b[key] || '')) * dir; }
+        else { av = a.scores?.[key] || 0; bv = b.scores?.[key] || 0; }
+        return (av - bv) * dir;
+      });
+    }
+    function inspectTasks() {
+      const q = state.inspectQuery.toLowerCase().trim();
+      return filteredTasks().filter(task => {
+        if (!q) return true;
+        return `${task.id} ${task.title} ${task.prompt} ${task.topic} ${languageName(task.language)}`.toLowerCase().includes(q);
+      });
+    }
+
+    function renderLeaderboard() {
+      const topics = [...summary.topics].sort((a, b) => String(a.name).localeCompare(String(b.name))).map(t => t.name);
+      const langs = summary.languages.map(t => t.name);
+      const rows = filteredTasks();
+      const avgs = summary.score_avgs;
+      const costPerTask = summary.counts.tasks ? summary.cost.total / summary.counts.tasks : 0;
+      document.getElementById('leaderboard').innerHTML = `
+        <div class="leaderboard-summary">
+          <div class="overall-summary"><strong>${fmt.score(avgs.overall_score)}</strong><span>Overall Score</span><small>${summary.counts.tasks} tasks</small></div>
+          <div class="kpi"><strong>${fmt.money(summary.cost.total)}</strong><span>Total cost</span><small>${fmt.money(costPerTask)}/task</small></div>
+          <div class="kpi"><strong>${fmt.min(summary.runtime.median)}</strong><span>Median runtime</span></div>
+          <div class="kpi"><strong>${fmt.num(summary.tokens.total)}</strong><span>Total tokens</span><small>Input ${fmt.num(summary.tokens.prompt)} · Output ${fmt.num(summary.tokens.completion)}</small></div>
+          ${modelInfoBlock()}
+        </div>
+        <div class="toolbar">
+          <div class="field"><label for="search">Search</label><input id="search" placeholder="Task, topic..." value="${esc(state.query)}"></div>
+          <div class="filter-panel">
+            <div class="filter-group"><label>Topics</label><div class="chip-row">
+              <button class="filter-chip all ${state.topics.length === topics.length ? 'active' : ''}" data-filter="topics" data-filter-value="all">All</button>
+              ${topics.map(topic => `<button class="filter-chip topic ${state.topics.includes(topic) ? 'active' : ''}" data-filter="topics" data-filter-value="${esc(topic)}" style="--topic-color:${topicColor(topic)}">${esc(topic)}</button>`).join('')}
+            </div></div>
+            <div class="filter-group"><label>Languages</label><div class="chip-row">
+              <button class="filter-chip all ${state.languages.length === langs.length ? 'active' : ''}" data-filter="languages" data-filter-value="all">All</button>
+              ${langs.map(lang => `<button class="filter-chip ${state.languages.includes(lang) ? 'active' : ''}" data-filter="languages" data-filter-value="${esc(lang)}">${esc(languageName(lang))}</button>`).join('')}
+            </div></div>
+          </div>
+        </div>
+        <table class="leaderboard-table">
+          <thead><tr>
+            <th class="sortable" data-sort="id">ID${sortArrow('id')}</th>
+            <th class="sortable" data-sort="title">Task${sortArrow('title')}</th>
+            <th class="sortable" data-sort="overall_score">Overall${sortArrow('overall_score')}</th>
+            <th class="sortable" data-sort="comprehensiveness">Comp.${sortArrow('comprehensiveness')}</th>
+            <th class="sortable" data-sort="insight">Insight${sortArrow('insight')}</th>
+            <th class="sortable" data-sort="instruction_following">Instr.${sortArrow('instruction_following')}</th>
+            <th class="sortable" data-sort="readability">Read.${sortArrow('readability')}</th>
+            <th class="sortable" data-sort="runtime">Runtime${sortArrow('runtime')}</th>
+            <th class="sortable" data-sort="cost">Cost${sortArrow('cost')}</th>
+            <th class="sortable" data-sort="references">Refs${sortArrow('references')}</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(task => `<tr class="click-row" data-open="${task.id}">
+              <td class="subtle">${task.id}</td>
+              <td><div class="task-stack">
+                <span class="task-title">${esc(shortClient(task.title, 150, 104))}</span>
+                <span class="task-context">${topicText(task.topic)}<span class="language-text">${esc(languageName(task.language))}</span></span>
+              </div></td>
+              <td>${metricText(task.scores.overall_score, 'overall_score')}</td>
+              <td>${metricText(task.scores.comprehensiveness, 'comprehensiveness')}</td>
+              <td>${metricText(task.scores.insight, 'insight')}</td>
+              <td>${metricText(task.scores.instruction_following, 'instruction_following')}</td>
+              <td>${metricText(task.scores.readability, 'readability')}</td>
+              <td>${plainMetric(task.runtime_seconds, fmt.min)}</td>
+              <td>${plainMetric(task.cost, fmt.money)}</td>
+              <td>${plainMetric(task.references_total, fmt.num)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+      document.getElementById('search').addEventListener('input', e => {
+        const caret = e.target.selectionStart;
+        state.query = e.target.value;
+        renderLeaderboard();
+        const search = document.getElementById('search');
+        search.focus();
+        search.setSelectionRange(caret, caret);
+      });
+      document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => {
+        const key = button.dataset.filter;
+        const value = button.dataset.filterValue;
+        const allValues = key === 'topics' ? topics : langs;
+        if (value === 'all') {
+          state[key] = state[key].length === allValues.length ? [] : [...allValues];
+        } else if (state[key].includes(value)) {
+          state[key] = state[key].filter(item => item !== value);
+        } else {
+          state[key] = [...state[key], value];
+        }
+        renderLeaderboard();
+      }));
+      document.querySelectorAll('[data-sort]').forEach(th => th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (state.sort === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        else { state.sort = key; state.sortDir = key === 'id' || key === 'title' || key === 'topic' || key === 'language' ? 'asc' : 'desc'; }
+        renderLeaderboard();
+      }));
+      document.querySelectorAll('tr[data-open]').forEach(row => row.addEventListener('click', () => {
+        state.selectedId = Number(row.dataset.open);
+        state.resetReportScroll = true;
+        state.reportTransition = true;
+        showPanel('inspect');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }));
+    }
+
+    function shortClient(value, latinLimit, cjkLimit = null) {
+      const text = String(value || '').replace(/\s+/g, ' ').trim();
+      const hasCjk = /[\u3400-\u9fff]/.test(text);
+      const effectiveLimit = hasCjk ? (cjkLimit ?? latinLimit) : latinLimit;
+      if (text.length <= effectiveLimit) return text;
+      let clipped = text.slice(0, effectiveLimit - 1).trim();
+      if (!hasCjk) {
+        const boundary = Math.max(clipped.lastIndexOf(' '), clipped.lastIndexOf('-'), clipped.lastIndexOf('/'));
+        if (boundary >= Math.max(12, Math.floor(effectiveLimit * 0.55))) {
+          clipped = clipped.slice(0, boundary).replace(/[\s\-/]+$/g, '');
+        }
+      }
+      return clipped + '...';
+    }
+
+    function renderGroups() {
+      function sortedGroupRows(group, rows) {
+        const sort = state.groupSort[group];
+        const dir = sort.dir === 'asc' ? 1 : -1;
+        return [...rows].sort((a, b) => {
+          if (sort.key === 'name') return String(a.name).localeCompare(String(b.name)) * dir;
+          return (Number(a[sort.key] || 0) - Number(b[sort.key] || 0)) * dir;
+        });
+      }
+      function groupTable(title, group, rows) {
+        const sorted = sortedGroupRows(group, rows);
+        return `<div class="block"><h2>${title}</h2><table data-group="${group}"><thead><tr>
+          <th class="sortable" data-group-sort="name">${group === 'topics' ? 'Topic' : 'Language'}${groupArrow(group, 'name')}</th>
+          <th class="sortable" data-group-sort="count">Tasks${groupArrow(group, 'count')}</th>
+          <th class="sortable" data-group-sort="avg_overall">Overall${groupArrow(group, 'avg_overall')}</th>
+          <th class="sortable" data-group-sort="avg_runtime_seconds">Runtime${groupArrow(group, 'avg_runtime_seconds')}</th>
+          <th class="sortable" data-group-sort="avg_cost">Cost${groupArrow(group, 'avg_cost')}</th>
+          <th class="sortable" data-group-sort="avg_references">Refs${groupArrow(group, 'avg_references')}</th>
+        </tr></thead><tbody>
+        ${sorted.map(row => `<tr><td><b>${group === 'topics' ? topicText(row.name) : esc(languageName(row.name))}</b></td><td>${row.count}</td><td>${scorePill(row.avg_overall)}</td><td>${plainMetric(row.avg_runtime_seconds, fmt.min)}</td><td>${plainMetric(row.avg_cost, fmt.money)}</td><td>${plainMetric(row.avg_references, value => fmt.dec(value, 1))}</td></tr>`).join('')}
+        </tbody></table></div>`;
+      }
+      document.getElementById('groups').innerHTML = `<div class="groups-layout"><div class="group-stack">${raceSummaryBlock()}${groupTable('By Language', 'languages', summary.languages)}</div>${groupTable('By Topic', 'topics', summary.topics)}</div>`;
+      document.querySelectorAll('[data-group-sort]').forEach(th => th.addEventListener('click', () => {
+        const group = th.closest('table').dataset.group;
+        const key = th.dataset.groupSort;
+        const sort = state.groupSort[group];
+        if (sort.key === key) sort.dir = sort.dir === 'asc' ? 'desc' : 'asc';
+        else { sort.key = key; sort.dir = key === 'name' ? 'asc' : 'desc'; }
+        renderGroups();
+      }));
+    }
+
+    function renderInspect() {
+      const currentList = document.querySelector('#inspect .task-list');
+      const currentSide = document.querySelector('#inspect .report-side');
+      const currentListScroll = currentList ? currentList.scrollTop : 0;
+      const currentSideScroll = state.resetReportScroll ? 0 : (currentSide ? currentSide.scrollTop : 0);
+      state.resetReportScroll = false;
+      const rows = inspectTasks();
+      const selected = taskById(state.selectedId);
+      const reportTransition = state.reportTransition;
+      state.reportTransition = false;
+      document.getElementById('inspect').innerHTML = `
+        <div class="detail ${state.reportFocus ? 'report-focus' : ''}${reportTransition ? ' report-switching' : ''}">
+          <div class="task-list">
+            <div class="task-list-search">
+              <input id="inspectSearch" placeholder="Search reports..." value="${esc(state.inspectQuery)}" autocomplete="off">
+            </div>
+            ${rows.map(task => `<button class="task-button ${task.id === selected.id ? 'active' : ''}" data-select="${task.id}">
+              <span class="subtle task-meta">#${task.id} / <span class="task-topic-text" style="--topic-color: ${topicColor(task.topic)}">${esc(task.topic)}</span> / ${esc(languageName(task.language))}</span>
+              <span class="task-title">${esc(shortClient(task.title, 72, 48))}</span>
+              <span class="subtle task-meta">Overall <span class="task-score-text" style="--score-color: ${scoreColor(task.scores.overall_score, 'overall_score')}">${fmt.score(task.scores.overall_score)}</span> · ${fmt.min(task.runtime_seconds)} · ${fmt.money(task.cost)}</span>
+            </button>`).join('') || '<div class="empty">No matching reports.</div>'}
+          </div>
+          ${detailHtml(selected)}
+        </div>`;
+      document.querySelector('#inspect .task-list')?.scrollTo(0, currentListScroll);
+      document.querySelector('#inspect .report-side')?.scrollTo(0, currentSideScroll);
+      document.getElementById('inspectSearch')?.addEventListener('input', e => {
+        const caret = e.target.selectionStart;
+        state.inspectQuery = e.target.value;
+        renderInspect();
+        const search = document.getElementById('inspectSearch');
+        search.focus();
+        search.setSelectionRange(caret, caret);
+      });
+      document.querySelectorAll('[data-select]').forEach(btn => btn.addEventListener('click', () => {
+        const listScroll = document.querySelector('#inspect .task-list')?.scrollTop || 0;
+        state.selectedId = Number(btn.dataset.select);
+        state.resetReportScroll = true;
+        state.reportTransition = true;
+        persistDashboardState();
+        renderInspect();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        document.querySelector('#inspect .task-list')?.scrollTo(0, listScroll);
+      }));
+      document.querySelector('[data-focus-report]')?.addEventListener('click', () => {
+        state.reportFocus = !state.reportFocus;
+        persistDashboardState();
+        renderInspect();
+      });
+      document.querySelector('[data-report-top]')?.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      enhanceArticle();
+      buildReportToc();
+      updateReportTopButton();
+    }
+
+    function taskPromptHtml(task) {
+      const prompt = String(task.prompt || '').trim();
+      return prompt ? `<p class="task-prompt">${esc(prompt)}</p>` : '';
+    }
+
+    function detailHtml(task) {
+      if (!task) return `<div class="empty">No task selected.</div>`;
+      const score = task.scores.overall_score || 0;
+      return `
+        <aside class="report-toc" data-report-toc>
+          <h2>Contents</h2>
+          <nav></nav>
+        </aside>
+        <div class="block detail-head">
+          <span class="tag">Task #${task.id}</span>
+          ${taskPromptHtml(task)}
+        </div>
+        <div class="report-main">
+          <div class="block">
+            <div class="report-toolbar">
+              <h2>Generated Report</h2>
+              <div class="report-actions">
+                <button class="small-button" data-focus-report>${state.reportFocus ? 'Show Inspector' : 'Focus Report'}</button>
+              </div>
+            </div>
+            <div class="article">${markdown(task.article || 'No article found for this task.', task)}</div>
+            <button class="report-top-button" data-report-top type="button" aria-label="Back to top"><span class="report-top-icon">↑</span><span>Top</span></button>
+          </div>
+        </div>
+        <aside class="report-side">
+          <div class="diagnostic-card overall-card" style="--score-color: ${scoreColor(score, 'overall_score')}">
+            <span class="overall-label">Overall Score</span>
+            <div class="overall-score"><strong>${fmt.score(score)}</strong></div>
+            <div class="hero-meta">
+              <div><span>Runtime</span><br><b>${fmt.min(task.runtime_seconds)}</b></div>
+              <div><span>Cost</span><br><b>${fmt.money(task.cost)}</b></div>
+            </div>
+          </div>
+          <div class="diagnostic-card"><h2>Scores</h2><div class="bar-list">${scoreKeys.map(key => barRow(key, task.scores[key], 1, key === 'overall_score', fmt.score, scoreColor(task.scores[key], key))).join('')}</div></div>
+          <div class="diagnostic-card"><h2>Execution Time</h2><div class="bar-list">${phaseRows(task)}</div>
+            <div class="usage-block">
+              <h2>Usage</h2>
+              <div class="usage-line"><span>Total Tokens</span><b>${fmt.num(task.total_tokens)}</b></div>
+              <div class="usage-breakdown"><span>Input <b>${fmt.num(task.prompt_tokens)}</b></span><span>Output <b>${fmt.num(task.completion_tokens)}</b></span></div>
+            </div>
+          </div>
+          ${sourceDiagnosticHtml(task)}
+          <details class="rubric-disclosure">
+            <summary>Rubric</summary>
+            <div class="rubric-content">
+              <div><h2>Weights</h2><div class="bar-list">
+                ${Object.entries(task.dimension_weight || {}).map(([k, v]) => barRow(k, Number(v), 1, k === 'insight', fmt.weight)).join('') || '<div class="empty">No rubric weights found.</div>'}
+              </div></div>
+              <div><h2>Criteria</h2><div class="criteria-list">${criteriaHtml(task)}</div></div>
+            </div>
+          </details>
+        </aside>`;
+    }
+
+    function criteriaHtml(task) {
+      const groups = task.criterions || {};
+      const parts = [];
+      for (const [dimension, rows] of Object.entries(groups)) {
+        parts.push(`<span class="tag soft">${esc(titleLabel(dimension))}</span>`);
+        for (const row of rows || []) {
+          parts.push(`<div class="criterion"><b>${esc(row.criterion)} <span class="subtle">${fmt.weight(row.weight)}</span></b><p>${esc(row.explanation || '')}</p></div>`);
+        }
+      }
+      return parts.join('') || '<div class="empty">No criteria found.</div>';
+    }
+
+    function markdown(text, task = null) {
+      const resolvedText = normalizeMathDelimiters(protectApproximationTildes(compactCitations(String(text || ''), task)));
+      if (window.marked) {
+        marked.setOptions({ gfm: true, breaks: false });
+        return sanitizeHtml(marked.parse(resolvedText));
+      }
+      return fallbackMarkdown(resolvedText);
+    }
+    function protectApproximationTildes(text) {
+      return text.replace(/~(?=\d)/g, '\\~');
+    }
+    function normalizeMathDelimiters(text) {
+      return text.replace(/(^|[^\\])\(([^()\n]{1,160}(?:\\[a-zA-Z]+|_\{[a-zA-Z]|_[a-zA-Z])[^()\n]*)\)/g, (match, prefix, body) => {
+        if (/\s/.test(body) && !/\\text\{[^}]+\}/.test(body)) return match;
+        return `${prefix}\\(${body}\\)`;
+      });
+    }
+    function compactCitations(text, task) {
+      const refs = task?.reference_links || [];
+      const sources = [];
+      const sourceMap = new Map();
+      const placeholders = [];
+      function cleanUrl(url) {
+        return String(url || '').trim().replace(/\\+$/g, '').replace(/[.,;]+$/g, '');
+      }
+      function htmlAttr(value) {
+        return String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      }
+      function sourceName(title, url, originalNumber) {
+        const cleanedTitle = String(title || '').trim();
+        if (cleanedTitle) return cleanedTitle;
+        if (url) {
+          try { return new URL(url).hostname.replace(/^www\./, ''); }
+          catch (_) { return url; }
+        }
+        return `Source ${originalNumber}`;
+      }
+      function sourceFor(rawNumber, title = '', url = '') {
+        const originalNumber = Number(rawNumber);
+        const fallback = refs[originalNumber - 1] || {};
+        const sourceUrl = cleanUrl(url || fallback.identifier || '');
+        const sourceTitle = sourceName(title || fallback.title || '', sourceUrl, originalNumber);
+        const key = sourceUrl || `ref:${originalNumber}:${sourceTitle}`;
+        if (!sourceMap.has(key)) {
+          sourceMap.set(key, sources.length + 1);
+          sources.push({ number: sources.length + 1, title: sourceTitle, url: sourceUrl });
+        }
+        const localNumber = sourceMap.get(key);
+        return sourceUrl
+          ? `<a class="citation" href="${htmlAttr(sourceUrl)}" target="_blank" rel="noreferrer">[${localNumber}]</a>`
+          : `[${localNumber}]`;
+      }
+      function sourceForArxivId(arxivId) {
+        const sourceUrl = `https://arxiv.org/abs/${arxivId}`;
+        const sourceTitle = `arXiv:${arxivId}`;
+        const key = sourceUrl;
+        if (!sourceMap.has(key)) {
+          sourceMap.set(key, sources.length + 1);
+          sources.push({ number: sources.length + 1, title: sourceTitle, url: sourceUrl });
+        }
+        const localNumber = sourceMap.get(key);
+        return `<a class="citation" href="${htmlAttr(sourceUrl)}" target="_blank" rel="noreferrer">[${localNumber}]</a>`;
+      }
+      function stash(value) {
+        const token = `@@CITE_${placeholders.length}@@`;
+        placeholders.push([token, value]);
+        return token;
+      }
+
+      let output = text;
+      output = output.replace(/\[\[(\d+)(?::\s*([\s\S]*?))?\]\]\(([^)\n]*?)(?:\\)?\)/g, (match, rawNumber, title, url) => (
+        stash(sourceFor(rawNumber, title, url))
+      ));
+      output = output.replace(/(?<!!)\[(\d+)(?::\s*([\s\S]*?))?\]\(([^)\n]*?)(?:\\)?\)/g, (match, rawNumber, title, url) => (
+        stash(sourceFor(rawNumber, title, url))
+      ));
+      output = output.replace(/(?<!\[)\[(\d+):\s*([^\]\n]+)\](?!\])/g, (match, rawNumber, title) => (
+        stash(sourceFor(rawNumber, title, ''))
+      ));
+      output = output.replace(/(?<!\[)\[(\d+)\](?!\()/g, (match, rawNumber) => {
+        const ref = refs[Number(rawNumber) - 1];
+        if (!ref?.identifier) return match;
+        return stash(sourceFor(rawNumber, '', ''));
+      });
+      output = output.replace(/【(\d+)】/g, (match, rawNumber) => {
+        const ref = refs[Number(rawNumber) - 1];
+        if (!ref?.identifier) return match;
+        return stash(sourceFor(rawNumber, '', ''));
+      });
+      output = output.replace(/［(\d+)］/g, (match, rawNumber) => {
+        const ref = refs[Number(rawNumber) - 1];
+        if (!ref?.identifier) return match;
+        return stash(sourceFor(rawNumber, '', ''));
+      });
+      output = output.replace(/\[(\d{4}\.\d{4,5}(?:v\d+)?)\]/g, (match, arxivId) => (
+        stash(sourceForArxivId(arxivId))
+      ));
+      output = output.replace(/\((arXiv:\d{4}\.\d{4,5}(?:v\d+)?(?:\s*,\s*(?:arXiv:)?\d{4}\.\d{4,5}(?:v\d+)?)*)\)/gi, (match, body) => {
+        const arxivIds = [...body.matchAll(/(?:arXiv:)?(\d{4}\.\d{4,5}(?:v\d+)?)/gi)].map(item => item[1]);
+        return stash(arxivIds.map(sourceForArxivId).join(''));
+      });
+      for (const [token, value] of placeholders) output = output.replaceAll(token, value);
+      if (!sources.length) return output;
+      const sourceLines = sources.map(source => {
+        const title = source.title.replace(/^\[(PDF|HTML|DOCX?)\]\s*/i, '').trim();
+        return source.url
+          ? `<p class="source-ref"><span>[${source.number}]</span> <a href="${htmlAttr(source.url)}" target="_blank" rel="noreferrer">${esc(title)}</a></p>`
+          : `<p class="source-ref"><span>[${source.number}]</span> ${esc(title)}</p>`;
+      });
+      return `${output.trim()}\n\n---\n\n## Sources\n\n${sourceLines.join('\n')}`;
+    }
+    function sanitizeHtml(html) {
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      template.content.querySelectorAll('script, iframe, object, embed').forEach(node => node.remove());
+      template.content.querySelectorAll('*').forEach(node => {
+        [...node.attributes].forEach(attr => {
+          const name = attr.name.toLowerCase();
+          const value = attr.value.trim();
+          if (name.startsWith('on')) node.removeAttribute(attr.name);
+          if ((name === 'href' || name === 'src') && /^javascript:/i.test(value)) node.removeAttribute(attr.name);
+        });
+        if (node.tagName === 'A') {
+          node.setAttribute('target', '_blank');
+          node.setAttribute('rel', 'noreferrer');
+        }
+      });
+      return template.innerHTML;
+    }
+    function fallbackMarkdown(text) {
+      const lines = String(text || '').split('\n');
+      const out = [];
+      let inTable = false;
+      let inList = false;
+      function closeList() { if (inList) { out.push('</ul>'); inList = false; } }
+      function closeTable() { if (inTable) { out.push('</tbody></table>'); inTable = false; } }
+      for (const raw of lines) {
+        const line = raw.trimEnd();
+        if (!line.trim()) { closeList(); closeTable(); continue; }
+        if (/^---+$/.test(line.trim())) { closeList(); closeTable(); out.push('<hr>'); continue; }
+        if (/^\|.*\|$/.test(line)) {
+          closeList();
+          const cells = line.split('|').slice(1, -1).map(c => c.trim());
+          if (cells.every(c => /^:?-{3,}:?$/.test(c))) continue;
+          if (!inTable) { out.push('<table><tbody>'); inTable = true; }
+          out.push(`<tr>${cells.map(c => `<td>${inlineMd(c)}</td>`).join('')}</tr>`);
+          continue;
+        }
+        closeTable();
+        if (line.startsWith('### ')) { closeList(); out.push(`<h3>${inlineMd(line.slice(4))}</h3>`); continue; }
+        if (line.startsWith('## ')) { closeList(); out.push(`<h2>${inlineMd(line.slice(3))}</h2>`); continue; }
+        if (line.startsWith('# ')) { closeList(); out.push(`<h1>${inlineMd(line.slice(2))}</h1>`); continue; }
+        if (/^[-*]\s+/.test(line)) {
+          if (!inList) { out.push('<ul>'); inList = true; }
+          out.push(`<li>${inlineMd(line.replace(/^[-*]\s+/, ''))}</li>`);
+          continue;
+        }
+        closeList();
+        out.push(`<p>${inlineMd(line)}</p>`);
+      }
+      closeList(); closeTable();
+      return out.join('');
+    }
+    function inlineMd(text) {
+      return esc(text)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    }
+    function enhanceArticle() {
+      if (!window.renderMathInElement) return;
+      document.querySelectorAll('.article').forEach(article => {
+        renderMathInElement(article, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '\\[', right: '\\]', display: true },
+            { left: '\\(', right: '\\)', display: false }
+          ],
+          throwOnError: false
+        });
+      });
+    }
+    function tocSlug(text, index) {
+      const slug = String(text || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      return slug || `section-${index + 1}`;
+    }
+    function buildReportToc() {
+      const toc = document.querySelector('[data-report-toc]');
+      if (!toc) return;
+      const nav = toc.querySelector('nav');
+      const headings = [...document.querySelectorAll('#inspect .article h1, #inspect .article h2, #inspect .article h3')];
+      const seen = new Map();
+      const links = headings.map((heading, index) => {
+        const base = tocSlug(heading.textContent, index);
+        const count = seen.get(base) || 0;
+        seen.set(base, count + 1);
+        heading.id = count ? `${base}-${count + 1}` : base;
+        return `<a class="toc-link ${heading.tagName.toLowerCase()}" href="#${heading.id}">${esc(heading.textContent)}</a>`;
+      });
+      nav.innerHTML = links.join('') || '<div class="toc-empty">No report headings found.</div>';
+      nav.querySelectorAll('a').forEach(link => link.addEventListener('click', event => {
+        event.preventDefault();
+        document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }));
+    }
+    window.addEventListener('load', () => {
+      if (document.getElementById('inspect').classList.contains('active')) renderInspect();
+    });
+
+    function updateReportTopButton() {
+      const button = document.querySelector('[data-report-top]');
+      const isInspectActive = document.getElementById('inspect')?.classList.contains('active');
+      if (!button) return;
+      const reportBlock = document.querySelector('#inspect .report-main > .block');
+      if (reportBlock && window.innerWidth > 760) {
+        const rect = reportBlock.getBoundingClientRect();
+        const targetLeft = rect.right + 14;
+        const maxLeft = window.innerWidth - button.offsetWidth - 14;
+        button.style.left = `${Math.max(14, Math.min(targetLeft, maxLeft))}px`;
+        button.style.right = 'auto';
+      } else {
+        button.style.left = 'auto';
+        button.style.right = '14px';
+      }
+      button.classList.toggle('visible', Boolean(isInspectActive && window.scrollY > 360));
+    }
+    window.addEventListener('scroll', updateReportTopButton, { passive: true });
+    window.addEventListener('resize', updateReportTopButton);
+    window.addEventListener('beforeunload', () => {
+      state.scrollY = window.scrollY || 0;
+      persistDashboardState();
+    });
+
+    function showPanel(id) {
+      state.activePanel = id;
+      persistDashboardState();
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.panel === id));
+      document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === id));
+      if (id === 'leaderboard') renderLeaderboard();
+      if (id === 'groups') renderGroups();
+      if (id === 'inspect') renderInspect();
+      delete document.documentElement.dataset.initialPanel;
+      updateReportTopButton();
+    }
+    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => showPanel(tab.dataset.panel)));
+    document.querySelector('[data-home-panel]')?.addEventListener('click', event => {
+      showPanel(event.currentTarget.dataset.homePanel);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    showPanel(state.activePanel);
+    requestAnimationFrame(() => {
+      if (state.activePanel === 'inspect' && state.scrollY > 0) {
+        window.scrollTo({ top: state.scrollY, behavior: 'auto' });
+        updateReportTopButton();
+      }
+    });
+  </script>
+</body>
+</html>

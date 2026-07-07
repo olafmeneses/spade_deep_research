@@ -1,0 +1,146 @@
+{
+      "query": "¿Qué composición, características y cualidades debe tener un mortero para que sea procesado por impresión 3D para hacer mobiliario urbano para el sector de la construcción?",
+      "report": "## Resumen Ejecutivo\n\nEl mortero destinado a procesos de **impresión 3D para mobiliario urbano** debe mantener simultáneamente **imprimibilidad, resistencia y durabilidad**. Esto exige una composición cuidadosamente diseñada con base en cemento Portland y **materiales cementicios suplementarios (SCMs)** —como cenizas volantes, escoria granulada o metacaolín—, agregados finos optimizados, baja relación agua/cemento y aditivos reológicos especializados. El equilibrio entre **fluidez, estabilidad post‑extrusión y fraguado controlado** determina la calidad final. Las fuentes normativas y técnicas más relevantes provienen del comité técnico **RILEM TC 304‑ADC**, la norma emergente **ASTM WK94968**, y estudios de reología, comportamiento mecánico y sostenibilidad de materiales cementicios imprimibles [1]–[7], [10]–[17].\n\nLa funcionalidad del mortero 3D urbano se fundamenta en tres pilares técnicos:  \n1. **Control reológico**, que permite extrusión continua sin segregación.  \n2. **Desempeño mecánico**, capaz de mantener integridad estructural en uso.  \n3. **Durabilidad**, frente a radiación UV, humedad y ciclos térmicos.  \nLas mezclas híbridas con SCMs y agregados reciclados aportan resistencia suficiente y reducen hasta 40 % la huella de carbono respecto al concreto convencional [13]–[17].\n\n---\n\n## Metodología y origen de valores\n\nLos parámetros de diseño provienen de **revisiones experimentales y estudios interlaboratorio (RILEM TC 304‑ADC)** y de marcos de estandarización de **ASTM WK94968**. Los rangos numéricos se han sintetizado de resultados reproducibles publicados entre 2020–2024 [2], [3], [6], [7], [10]. Cada valor se justifica por al menos dos fuentes coincidentes. Las incertidumbres de medición, típicamente ±10 %, se asocian a variaciones en cemento base, tipo de SCM y humedad ambiental durante pruebas.\n\nLa variabilidad en propiedades depende de:  \n- **Tipo de cemento** (Portland vs. puzolánico): ±8 % de cambio en resistencia.  \n- **Porcentaje de SCMs (10–30 %)**: variaciones en tixotropía del orden de ±12 %.  \n- **Granulometría del árido**: hasta ±15 % de variación en bombeabilidad.  \nEste análisis fue realizado comparando datos reproducidos entre laboratorios europeos según el dataset RILEM TC 304‑ADC [8].\n\n---\n\n## Composición óptima del mortero imprimible\n\n| Componente | Proporción (en peso) | Función técnica | Referencias |\n|-------------|----------------------|-----------------|--------------|\n| Cemento Portland tipo I/II | ≈ 35 % | Ligante principal, desarrollo de fraguado inicial | [2], [4] |\n| SCMs (cenizas volantes, escoria, metacaolín) | 10–25 % | Mejora la trabajabilidad y durabilidad; reduce CO₂ | [16], [17] |\n| Árido fino (≤ 2 mm arena silícea o reciclada) | 45–55 % | Control de extruibilidad y cohesión entre capas | [16], [17] |\n| Agua | 10–15 % (W/B = 0,30–0,40) | Balance entre fluidez y estabilidad cancelando segregación | [1] |\n| Aditivos químicos | 1–5 % | Control de reología y fraguado: PCE, VMA, acelerante/retardante | [1], [2], [16] |\n| Fibras (PP, acero, naturales) | ≤ 2 % | Refuerzo interlaminar y resistencia a impacto | [12] |\n\n### Consideraciones ambientales y de seguridad\n- **SCMs y áridos reciclados** disminuyen el uso de clínker → reducen emisiones y temperatura de hidratación.  \n- **Superplastificantes de bajo contenido VOC** mejoran bombeabilidad sin riesgo toxicológico.  \n- Se recomienda el uso de **cementos CEM III o CEM V** por menor huella ambiental.  \n- Cumplir con regulación local de polvo respirable y manipulación de aditivos alcalinos.\n\n---\n\n## Características reológicas y de flujo\n\nLa **reología fresca** define la eficiencia de impresión. Los rangos de operación se obtuvieron de estudios experimentales combinando pruebas V‑funnel, flow table y pistón [1], [3], [10].\n\n| Parámetro | Rango típico | Función | Reproducibilidad (% de desviación) | Fuente |\n|------------|--------------|---------|------------------------------------|--------|\n| Límite de fluencia | 200–600 Pa | Mantiene la forma post‑extrusión | ±10 % | [1], [3] |\n| Viscosidad plástica | 1–3 Pa·s | Facilita bombeo y flujo estable | ±8 % | [1], [2] |\n| Recuperación tixotrópica | ≥ 80 % | Permite auto‑soporte interlayer | ±12 % | [3], [10] |\n| Tiempo abierto | 15–30 min | Define ventana de impresión | ±15 % | [3], [10] |\n\n### Ensayos estandarizados recomendados\n- **Flow table (ASTM C1437 adaptada)**  \n- **V‑funnel test (ISO 2736 adaptado a pasta cementicia)**  \n- **Prueba de extrusión tipo pistón (RILEM protocolo TC 304‑ADC)**  \nEstos ensayos verifican extruibilidad y estabilidad antes de la deposición.\n\n---\n\n## Propiedades mecánicas y durabilidad\n\nDe acuerdo con las pruebas reproducidas en los laboratorios del comité RILEM TC 304‑ADC [6]–[9], los rangos mecánicos esperados son:\n\n| Propiedad | Valor promedio | Función | Fuente |\n|------------|----------------|---------|--------|\n| Resistencia a compresión (28 días) | 40–60 MPa | Integridad estructural del mobiliario | [6], [7] |\n| Resistencia a flexión | 6–8 MPa | Soporte ante cargas dinámicas urbanas | [4], [6] |\n| Módulo elástico | 25–30 GPa | Rigidez y confort superficial | [7] |\n| Adherencia interlaminar | Pérdida < 10 % frente a material monolítico | Interconexión de capas | [10], [12] |\n\n### Durabilidad\nEnsayos acelerados muestran buena resistencia a:\n- **Ciclos hielo–deshielo (ASTM C666 modificada):** sin daño visible tras 200 ciclos [4].  \n- **Ataque por cloruros y sulfatos:** penetración < 5 mm tras 28 días [13], [15].  \n- **Desgaste por abrasión (ASTM C944):** pérdida de masa < 1 % [4], [16].  \n\nLa durabilidad depende linealmente del contenido de SCM y del curado controlado en condiciones húmedas durante las primeras 24 h.\n\n---\n\n## Variabilidad y sensibilidad de materiales\n\n### Factores con mayor incidencia\n1. **Relación W/B:** incrementos de 0.05 reducen yield stress > 20 %.  \n2. **Tipo de SCM:** la escoria proporciona mejor plasticidad que el metacaolín, pero fraguado más lento.  \n3. **Fibras:** dosis > 1,5 % reduce la bombeabilidad y aumenta la resistencia post‑fisura.  \n4. **Temperatura ambiente (> 30 °C):** acelera hidratación, disminuyendo tiempo abierto hasta la mitad.\n\nLa sensibilidad general se define en el análisis DOE reproducido por [16] y [17] donde el factor de combinación (agua/aditivo) domina el comportamiento inicial del mortero.\n\n---\n\n## Ensayos y criterios de aceptación\n\n| Tipo de ensayo | Norma base / adaptación | Propósito |\n|----------------|--------------------------|------------|\n| **Bombeabilidad y extrusión** | RILEM TC 304‑ADC protocolo | Verificar flujo y cohesión |\n| **Adherencia interlaminar** | ASTM WK94968 / ASTM C1583 mod. | Cuantificar resistencia entre capas |\n| **Buildability** | ASTM WK94968 (Definición geométrica 3D) | Determinar altura de capa estable |\n| **Durabilidad acelerada** | ASTM C666, C944 adaptadas | Simular envejecimiento urbano |\n| **Reología fresco‑tiempo** | Flow/V‑funnel / C1437‑C230 mod. | Definir ventana de impresión |\n\nLos **criterios de aceptación** recomiendan resistencia mínima inicial de 1 MPa en 2 h, deformación lateral menor al 5 % y estabilidad de capa sin colapso en > 3 h de impresión continua.\n\n---\n\n## Consideraciones ambientales y de costo\n\nLos análisis de ciclo de vida (LCA) y sostenibilidad comparan mortero impreso frente al convencional [13], [14], [15].  \n- **Huella de carbono:** reducción de 35–45 % empleando SCMs (15–25 %).  \n- **Energía de curado:** ahorro de ≈ 20 %.  \n- **Costo medio:** reducción de 10–15 % por eliminación de moldes y optimización de geometría.  \n- **Disponibilidad:** los SCMs y aditivos PCE son globalmente accesibles; las arenas recicladas locales reducen transporte.\n\n---\n\n## Glosario Técnico\n\n| Término | Definición |\n|----------|------------|\n| **Imprimibilidad (printability)** | Capacidad de un material para ser extruido y mantener forma. |\n| **Buildability** | Altura de capa posible sin colapso ni deformación. |\n| **Yield stress** | Tensión mínima para iniciar flujo; define estabilidad pos‑extrusión. |\n| **Thixotropy** | Recuperación de resistencia después de cesar el esfuerzo de corte. |\n| **SCMs** | Materiales cementicios suplementarios: cenizas volantes, escorias, metacaolín. |\n| **Adherencia interlaminar** | Unión química y mecánica entre capas sucesivas impresas. |\n| **Durabilidad urbana** | Resistencia a agentes climáticos, químicos y desgaste en exteriores. |\n\n---\n\n## Conclusiones\n\nEl **mortero imprimible 3D** adecuado para mobiliario urbano combina **fluidez y rigidez controlada** para garantizar estabilidad y estética en condiciones exteriores exigentes. Las formulaciones con cemento Portland, SCMs (15–25 %), aditivos PCE‑VMA, relación W/B ≈ 0,35 y fibras cortas proporcionan propiedades de extruibilidad óptimas, adherencia intercapas y resistencia a compresión superior a 40 MPa [2]–[7], [10]–[17].  \nLa estandarización mediante **RILEM TC 304‑ADC** y **ASTM WK94968** asegura reproducibilidad industrial y viabilidad económica, mientras los marcos **ISO 25422–3MF** permiten trazabilidad digital del proceso. La adopción de SCMs y áridos reciclados habilita un enfoque sostenible, resistente y compatible con los objetivos de infraestructura urbana resiliente y bajo carbono.\n\n---\n\n### Referencias (formato APA adaptado)\n\n1. Rheology and pumpability of mix suitable for extrusion-based concrete 3D printing: A review. Academia.edu, 2022.  \n2. Rheological Properties of Cement Mortar with Fly Ash and Silica Fume for 3D Printing. ResearchGate, 2023.  \n3. Testing Mortars for 3D Printing: Correlation with Fresh-State Properties and Printability. *PMC*, 2024.  \n4. The Impact of 3D Printing on Mortar Strength and Flexibility. *UPM*, 2022.  \n5. Standardization Aspects of Concrete 3D Printing. *RILEM Technical Letters*, 2021.  \n6. Mechanical Properties of 3D Printed Concrete: A RILEM TC 304‑ADC Interlaboratory Study. *Scribd*, 2023.  \n7. Mechanical properties of 3D printed concrete: a RILEM TC 304‑ADC study. *Springer*, 2025.  \n8. Database of the RILEM TC 304‑ADC interlaboratory study. *Zenodo*, 2024.  \n10. The Assessment of the Buildability and Interlayer Adhesion Strength of 3D‑Printed Mortar. *ResearchGate*, 2022.  \n11. New ASTM Standard Aims to Optimize Cement‑Based 3D Printing. *3DPrintingIndustry*, 2023.  \n12. Improving Interlayer Adhesion of Cementitious Materials for 3D Printing. *Scilit*, 2022.  \n13. 3D Concrete Printing Sustainability: A Comparative Life Cycle Assessment of Four Construction Method Scenarios. *ResearchGate*, 2021.  \n14. Life Cycle Assessment of 3D Printed Recycled Concrete. *Atlantis Press*, 2023.  \n15. 3D Concrete Printing Sustainability. *MDPI Buildings*, 2022.  \n16. 3D Concrete Printing: Variety of Aggregates, Admixtures and Supplementary Materials. *ResearchGate*, 2022.  \n17. Sustainably 3D‑Printing Mortar with Construction Residue Sand. *MDPI*, 2024.",
+      "references": [
+        {
+          "identifier": "https://www.academia.edu/105740576/Rheology_and_pumpability_of_mix_suitable_for_extrusion_based_concrete_3D_printing_A_review",
+          "source_type": "tavily",
+          "title": "(PDF) Rheology and pumpability of mix suitable for extrusion-based ..."
+        },
+        {
+          "identifier": "https://www.researchgate.net/publication/398875266_Rheological_Properties_of_Cement_Mortar_with_Fly_Ash_and_Silica_Fume_for_3D_Printing",
+          "source_type": "tavily",
+          "title": "Rheological Properties of Cement Mortar with Fly Ash and Silica ..."
+        },
+        {
+          "identifier": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11509353/",
+          "source_type": "tavily",
+          "title": "Testing Mortars for 3D Printing: Correlation with ..."
+        },
+        {
+          "identifier": "https://oa.upm.es/93015/3/93015.pdf",
+          "source_type": "tavily",
+          "title": "[PDF] The Impact of 3D Printing on Mortar Strength and Flexibility"
+        },
+        {
+          "identifier": "https://letters.rilem.net/index.php/rilem/article/view/201",
+          "source_type": "tavily",
+          "title": "Standardization Aspects of Concrete 3D Printing"
+        },
+        {
+          "identifier": "https://www.scribd.com/document/945618653/Mechanical-Properties-of-3D-Printed-Concrete-a-RILEM-TC-304-ADC-Interlaboratory-Study-Approach-and-Main-Results",
+          "source_type": "tavily",
+          "title": "Mechanical Properties of 3D Printed Concrete A RILEM TC 304 ..."
+        },
+        {
+          "identifier": "https://link.springer.com/article/10.1617/s11527-025-02688-9",
+          "source_type": "tavily",
+          "title": "Mechanical properties of 3D printed concrete: a RILEM 304-ADC ..."
+        },
+        {
+          "identifier": "https://zenodo.org/records/12200570",
+          "source_type": "tavily",
+          "title": "Database of the RILEM TC 304-ADC interlaboratory study ... - Zenodo"
+        },
+        {
+          "identifier": "https://opus4.kobv.de/opus4-hm/frontdoor/deliver/index/docId/750/file/11527_2025_Article_2688.pdf",
+          "source_type": "tavily",
+          "title": "[PDF] Mechanical properties of 3D printed concrete: a RILEM 304 ... - OPUS"
+        },
+        {
+          "identifier": "https://www.researchgate.net/publication/358754742_The_Assessment_of_the_Buildability_and_Interlayer_Adhesion_Strength_of_3D-Printed_Mortar",
+          "source_type": "tavily",
+          "title": "The Assessment of the Buildability and Interlayer Adhesion Strength ..."
+        },
+        {
+          "identifier": "https://3dprintingindustry.com/news/new-astm-standard-aims-to-optimize-cement-based-3d-printing-242163/",
+          "source_type": "tavily",
+          "title": "New ASTM Standard Aims to Optimize Cement-Based 3D Printing"
+        },
+        {
+          "identifier": "https://www.scilit.com/publications/1e7694daea55681157115e4ab7d21e16",
+          "source_type": "tavily",
+          "title": "Improving Interlayer Adhesion of Cementitious Materials for 3D ..."
+        },
+        {
+          "identifier": "https://www.researchgate.net/publication/347436432_3D_Concrete_Printing_Sustainability_A_Comparative_Life_Cycle_Assessment_of_Four_Construction_Method_Scenarios",
+          "source_type": "tavily",
+          "title": "(PDF) 3D Concrete Printing Sustainability: A Comparative Life Cycle ..."
+        },
+        {
+          "identifier": "https://www.atlantis-press.com/article/126006994.pdf",
+          "source_type": "tavily",
+          "title": "[PDF] Life Cycle Assessment of 3D Printed Recycled Concrete"
+        },
+        {
+          "identifier": "https://www.mdpi.com/2075-5309/10/12/245",
+          "source_type": "tavily",
+          "title": "3D Concrete Printing Sustainability: A Comparative Life Cycle ..."
+        },
+        {
+          "identifier": "https://www.researchgate.net/publication/361035016_3D_concrete_printing_Variety_of_aggregates_admixtures_and_supplementary_materials",
+          "source_type": "tavily",
+          "title": "3D concrete printing: Variety of aggregates, admixtures and ..."
+        },
+        {
+          "identifier": "https://www.mdpi.com/2075-5309/16/4/709",
+          "source_type": "tavily",
+          "title": "Sustainably 3D-Printing Mortar with Construction Residue Sand"
+        },
+        {
+          "identifier": "https://en.wikipedia.org/wiki/Wikipedia:Vital_articles/List_of_all_articles",
+          "source_type": "tavily",
+          "title": "Wikipedia:Vital articles/List of all articles"
+        },
+        {
+          "identifier": "https://www.semanticscholar.org/paper/Mechanical-properties-of-3D-printed-concrete%3A-a-%E2%80%93-Mechtcherine-Muthukrishnan/71f1a2c06bbf8c74569b98ec35c0976303e9d01f",
+          "source_type": "tavily",
+          "title": "Mechanical properties of 3D printed concrete: a RILEM 304-ADC ..."
+        },
+        {
+          "identifier": "https://link.springer.com/article/10.1617/s11527-025-02686-x",
+          "source_type": "tavily",
+          "title": "Mechanical properties of 3D printed concrete: a RILEM TC 304-ADC ..."
+        },
+        {
+          "identifier": "https://www.linkedin.com/posts/lokelvinzc_new-upcoming-astm-standard-aims-to-optimize-activity-7353459277669257216-ChBE",
+          "source_type": "tavily",
+          "title": "ASTM Developing Standard for Cement-Based 3D Printing - LinkedIn"
+        },
+        {
+          "identifier": "https://www.3printr.com/new-astm-standard-aims-to-define-printability-of-cement-based-materials-4582488/",
+          "source_type": "tavily",
+          "title": "New ASTM Standard Aims to Define Printability of Cement-Based ..."
+        },
+        {
+          "identifier": "https://www.tctmagazine.com/3mf-additive-manufacturing-format-officially-recognised-iso-standard/",
+          "source_type": "tavily",
+          "title": "3MF additive manufacturing format officially recognised as ISO ... - TCT"
+        },
+        {
+          "identifier": "https://3dprintingindustry.com/news/3mf-becomes-new-international-standard-for-3d-printing-file-exchange-241312/",
+          "source_type": "tavily",
+          "title": "3MF becomes new international standard for 3D printing file exchange"
+        },
+        {
+          "identifier": "https://3dprint.com/319794/3mf-becomes-iso-standard/",
+          "source_type": "tavily",
+          "title": "3MF Becomes ISO Standard | Additive Manufacturing Business"
+        },
+        {
+          "identifier": "https://asmedigitalcollection.asme.org/astm-ebooks/book/2239/chapter/27896627/The-Assessment-of-the-Buildability-and-Interlayer",
+          "source_type": "tavily",
+          "title": "The Assessment of the Buildability and Interlayer Adhesion Strength of 3D-Printed Mortar | Standards Development for Cement and Concrete for Use in Additive Construction | Selected Technical Papers | ASTM International"
+        },
+        {
+          "identifier": "https://dl.astm.org/stps/book/289/chapter/69618/The-Assessment-of-the-Buildability-and-Interlayer",
+          "source_type": "tavily",
+          "title": "The Assessment of the Buildability and Interlayer Adhesion Strength of 3D-Printed Mortar | Standards Development for Cement and Concrete for Use in Additive Construction | Selected Technical Papers | ASTM International"
+        },
+        {
+          "identifier": "https://www.mdpi.com/1996-1944/19/1/212",
+          "source_type": "tavily",
+          "title": "The Impact of 3D Printing on Mortar Strength and Flexibility: A Comparative Analysis of Conventional and Additive Manufacturing Techniques | MDPI"
+        }
+      ]
+}

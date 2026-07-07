@@ -1,0 +1,45 @@
+services:
+  api:
+    image: spade-deep-research:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      - ARXIV_MCP_URL=http://mcp:8000/mcp
+      - ARXIV_STORAGE_PATH=/app/data/arxiv_papers
+      - CHROMADB_PATH=/app/data/chromadb
+    volumes:
+      - api_data:/app/data
+    depends_on:
+      mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+
+  mcp:
+    image: ${ARXIV_MCP_IMAGE:-arxiv-mcp-server:latest}
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - mcp_data:/root/.arxiv-mcp-server
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost', 8000)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+volumes:
+  api_data:
+  mcp_data:
